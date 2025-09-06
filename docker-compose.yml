@@ -1,5 +1,3 @@
-# Arquivo: docker-compose.yml
-
 version: '3.8'
 services:
   db:
@@ -21,6 +19,7 @@ services:
   api:
     build: .
     container_name: comunica-api
+    restart: always
     command: npm start
     environment:
       DB_USER: local
@@ -48,12 +47,37 @@ services:
       - api
     networks:
       - app-network
+    # Adicionado comando para recarregar o Nginx periodicamente e pegar certificados renovados
+    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
 
   certbot:
     image: certbot/certbot
+    container_name: certbot
+    restart: always
     volumes:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
+    # Garante que o Nginx inicie antes de tentar obter o certificado
+    depends_on:
+      - nginx
+    # Comando para obter o certificado inicial e depois renová-lo automaticamente
+    command: >
+      sh -c "
+        echo 'Aguardando o Nginx iniciar...' && sleep 15s && \
+        echo 'Iniciando o Certbot...' && \
+        certbot certonly --webroot --webroot-path=/var/www/certbot \
+          --email mvscmarcos@gmail.com \
+          -d comunicamais.personal-dev.online \
+          --rsa-key-size 4096 \
+          --agree-tos \
+          --no-eff-email \
+          --non-interactive || true && \
+        while true; do \
+          sleep 12h && \
+          echo 'Renovando o certificado...' && \
+          certbot renew --quiet; \
+        done
+      "
 
 volumes:
   pgdata:
