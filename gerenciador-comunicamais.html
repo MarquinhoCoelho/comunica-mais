@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+	<meta charset="UTF-8">
+	<title>Gerenciador ComunicaMais</title>
+	<style>
+			:root {
+				--cor-principal: #9D33B1;
+				--cor-secundaria: #FCE152;
+				--cor-texto: #2C2948;
+				--cor-input: #F7F7F7;
+			}
+			body {
+				font-family: Arial, sans-serif;
+				margin: 30px;
+				background: #fff;
+				color: var(--cor-texto);
+			}
+			h1, h2 {
+				color: var(--cor-principal);
+			}
+			h2 { margin-top: 40px; }
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				margin-bottom: 20px;
+				background: #fff;
+				color: var(--cor-texto);
+			}
+			th, td {
+				border: 1px solid #e0e0e0;
+				padding: 8px;
+				text-align: left;
+			}
+			th {
+				background: var(--cor-secundaria);
+				color: var(--cor-texto);
+			}
+			input, select {
+				margin: 2px;
+				padding: 7px 10px;
+				font-size: 15px;
+				border: 1px solid #d1cfd7;
+				border-radius: 5px;
+				background: var(--cor-input);
+				color: var(--cor-texto);
+				outline-color: var(--cor-principal);
+				transition: border 0.2s;
+			}
+			input:focus, select:focus {
+				border: 1.5px solid var(--cor-principal);
+			}
+			button {
+				margin: 2px;
+				padding: 7px 16px;
+				font-size: 15px;
+				border: none;
+				border-radius: 5px;
+				background: var(--cor-secundaria);
+				color: var(--cor-texto);
+				font-weight: bold;
+				cursor: pointer;
+				transition: background 0.2s, color 0.2s;
+				box-shadow: 0 1px 2px #eee;
+			}
+			button:hover {
+				background: var(--cor-principal);
+				color: #fff;
+			}
+			.actions button {
+				margin-right: 4px;
+				min-width: 70px;
+			}
+			.form-row {
+				margin-bottom: 10px;
+			}
+			.section {
+				border: 1.5px solid var(--cor-principal);
+				border-radius: 10px;
+				padding: 18px;
+				margin-bottom: 30px;
+				background: #fafbfc;
+				box-shadow: 0 2px 8px #f3e6f7;
+			}
+			.error {
+				color: #b00;
+				font-size: 14px;
+			}
+			.success {
+				color: #080;
+				font-size: 14px;
+			}
+	</style>
+</head>
+<body>
+	<h1>Gerenciador ComunicaMais</h1>
+
+
+	<div class="section">
+		<h2>Usuários</h2>
+		<form id="formUsuario">
+			<div class="form-row">
+				<input type="hidden" id="usuarioId">
+				<input type="text" id="usuarioNome" placeholder="Nome" required>
+				<input type="email" id="usuarioEmail" placeholder="Email" required>
+				<input type="text" id="usuarioSobre" placeholder="Sobre">
+				<input type="password" id="usuarioSenha" placeholder="Senha" required>
+				<input type="date" id="usuarioDataNascimento" placeholder="Data de Nascimento">
+				<input type="text" id="usuarioTelefone" placeholder="Telefone">
+				<input type="text" id="usuarioPerfil" placeholder="Perfil">
+				<button type="submit" id="btnSalvarUsuario">Salvar</button>
+				<button type="button" id="btnLimparUsuario">Limpar</button>
+			</div>
+			<span id="usuarioMsg"></span>
+		</form>
+		<table id="usuariosTable">
+			<thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Sobre</th><th>Data Nasc.</th><th>Telefone</th><th>Perfil</th><th>Ações</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+
+
+	<div class="section">
+		<h2>Objetivos</h2>
+		<form id="formObjetivo">
+			<div class="form-row">
+				<input type="hidden" id="objetivoId">
+				<input type="text" id="objetivoNome" placeholder="Nome" required>
+				<input type="text" id="objetivoDescricao" placeholder="Descrição">
+				<button type="submit" id="btnSalvarObjetivo">Salvar</button>
+				<button type="button" id="btnLimparObjetivo">Limpar</button>
+			</div>
+			<span id="objetivoMsg"></span>
+		</form>
+		<table id="objetivosTable">
+			<thead><tr><th>ID</th><th>Nome</th><th>Descrição</th><th>Ações</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+
+
+	<div class="section">
+		<h2>Métodos</h2>
+		<form id="formMetodo">
+			<div class="form-row">
+				<input type="hidden" id="metodoId">
+				<input type="text" id="metodoNome" placeholder="Nome" required>
+				<input type="text" id="metodoDescricao" placeholder="Descrição">
+				<input type="text" id="metodoPrompt" placeholder="Prompt">
+				<input type="text" id="metodoCriterios" placeholder="Critérios Avaliativos">
+				<select id="metodoObjetivoId" required></select>
+				<button type="submit" id="btnSalvarMetodo">Salvar</button>
+				<button type="button" id="btnLimparMetodo">Limpar</button>
+			</div>
+			<span id="metodoMsg"></span>
+		</form>
+		<table id="metodosTable">
+			<thead><tr><th>ID</th><th>Nome</th><th>Descrição</th><th>Prompt</th><th>Critérios</th><th>Objetivo</th><th>Ações</th></tr></thead>
+			<tbody></tbody>
+		</table>
+	</div>
+
+	<script>
+		// Helpers
+		function showMsg(el, msg, ok) { el.textContent = msg; el.className = ok ? 'success' : 'error'; setTimeout(() => { el.textContent = ''; }, 2500); }
+
+		// URL base do backend
+		const API_BASE = 'http://localhost:3000';
+
+		// Usuários CRUD
+		async function fetchUsuarios() {
+			const res = await fetch(`${API_BASE}/usuarios`);
+			const data = await res.json();
+			const tbody = document.querySelector('#usuariosTable tbody');
+			tbody.innerHTML = '';
+			data.forEach(u => {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<td>${u.id}</td><td>${u.nome}</td><td>${u.email}</td><td>${u.sobre||''}</td><td>${u.datanascimento ? u.datanascimento.split('T')[0] : ''}</td><td>${u.telefone||''}</td><td>${u.perfil||''}</td><td class="actions">
+					<button onclick="editarUsuario('${u.id}', '${u.nome}', '${u.email}', '${u.sobre||''}', '', '${u.datanascimento ? u.datanascimento.split('T')[0] : ''}', '${u.telefone||''}', '${u.perfil||''}')">Editar</button>
+					<button onclick="deletarUsuario('${u.id}')">Excluir</button></td>`;
+				tbody.appendChild(tr);
+			});
+		}
+		async function salvarUsuario(e) {
+			e.preventDefault();
+			const id = usuarioId.value;
+			const nome = usuarioNome.value;
+			const email = usuarioEmail.value;
+			const sobre = usuarioSobre.value;
+			const senha = usuarioSenha.value;
+			const dataNascimento = usuarioDataNascimento.value;
+			const telefone = usuarioTelefone.value;
+			const perfil = usuarioPerfil.value;
+			let resp;
+			const payload = { nome, email, sobre, senha, dataNascimento, telefone, perfil };
+			if (id) {
+				resp = await fetch(`${API_BASE}/usuarios/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			} else {
+				resp = await fetch(`${API_BASE}/usuarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			}
+			if (resp.ok) {
+				showMsg(usuarioMsg, 'Salvo com sucesso!', true);
+				formUsuario.reset();
+				fetchUsuarios();
+			} else {
+				showMsg(usuarioMsg, 'Erro ao salvar!', false);
+			}
+		}
+		function editarUsuario(id, nome, email, sobre, senha, dataNascimento, telefone, perfil) {
+			usuarioId.value = id;
+			usuarioNome.value = nome;
+			usuarioEmail.value = email;
+			usuarioSobre.value = sobre;
+			usuarioSenha.value = senha;
+			usuarioDataNascimento.value = dataNascimento;
+			usuarioTelefone.value = telefone;
+			usuarioPerfil.value = perfil;
+		}
+		async function deletarUsuario(id) {
+			if (!confirm('Excluir usuário?')) return;
+			const resp = await fetch(`${API_BASE}/usuarios/${id}`, { method: 'DELETE' });
+			if (resp.ok) {
+				fetchUsuarios();
+			}
+		}
+		btnLimparUsuario.onclick = () => formUsuario.reset();
+		formUsuario.onsubmit = salvarUsuario;
+
+		// Objetivos CRUD
+		async function fetchObjetivos() {
+			const res = await fetch(`${API_BASE}/objetivos`);
+			const data = await res.json();
+			const tbody = document.querySelector('#objetivosTable tbody');
+			tbody.innerHTML = '';
+			data.forEach(o => {
+				const tr = document.createElement('tr');
+					// Escapar aspas simples e duplas para evitar quebra de string no onclick
+					const nomeEsc = (o.nome || '').replace(/'/g, "&#39;").replace(/\"/g, '&quot;');
+					const descEsc = (o.descricao || '').replace(/'/g, "&#39;").replace(/\"/g, '&quot;');
+					tr.innerHTML = `<td>${o.id}</td><td>${o.nome}</td><td>${o.descricao || ''}</td><td class="actions">
+						<button onclick="editarObjetivo('${o.id}', '${nomeEsc}', '${descEsc}')">Editar</button>
+						<button onclick="deletarObjetivo('${o.id}')">Excluir</button></td>`;
+				tbody.appendChild(tr);
+			});
+			// Atualiza select de objetivos em métodos
+			const select = document.getElementById('metodoObjetivoId');
+			select.innerHTML = '<option value="">Objetivo</option>';
+			data.forEach(o => {
+				const opt = document.createElement('option');
+				opt.value = o.id;
+				opt.textContent = o.nome;
+				select.appendChild(opt);
+			});
+		}
+		async function salvarObjetivo(e) {
+			e.preventDefault();
+			const id = objetivoId.value;
+			const nome = objetivoNome.value;
+			const descricao = objetivoDescricao.value;
+			let resp;
+			const payload = { nome, descricao };
+			if (id) {
+				resp = await fetch(`${API_BASE}/objetivos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			} else {
+				resp = await fetch(`${API_BASE}/objetivos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			}
+			if (resp.ok) {
+				showMsg(objetivoMsg, 'Salvo com sucesso!', true);
+				formObjetivo.reset();
+				fetchObjetivos();
+			} else {
+				showMsg(objetivoMsg, 'Erro ao salvar!', false);
+			}
+		}
+		function editarObjetivo(id, nome, descricao) {
+			objetivoId.value = id;
+			objetivoNome.value = nome;
+			objetivoDescricao.value = descricao || '';
+		}
+		async function deletarObjetivo(id) {
+			if (!confirm('Excluir objetivo?')) return;
+			const resp = await fetch(`${API_BASE}/objetivos/${id}`, { method: 'DELETE' });
+			if (resp.ok) {
+				fetchObjetivos();
+				fetchMetodos();
+			}
+		}
+		btnLimparObjetivo.onclick = () => formObjetivo.reset();
+		formObjetivo.onsubmit = salvarObjetivo;
+
+		// Métodos CRUD
+		async function fetchMetodos() {
+			const res = await fetch(`${API_BASE}/metodos`);
+			const data = await res.json();
+			const tbody = document.querySelector('#metodosTable tbody');
+			tbody.innerHTML = '';
+			// Para mostrar nome do objetivo
+			const objetivos = {};
+			(await fetch(`${API_BASE}/objetivos`).then(r=>r.json())).forEach(o => objetivos[o.id] = o.nome);
+			data.forEach(m => {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<td>${m.id}</td><td>${m.nome}</td><td>${m.descricao||''}</td><td>${m.prompt||''}</td><td>${m.criteriosavaliativos||''}</td><td>${objetivos[m.iddoobjetivo]||'-'}</td><td class="actions">
+					<button onclick="editarMetodo('${m.id}', '${m.nome}', '${m.descricao||''}', '${m.prompt||''}', '${m.criteriosavaliativos||''}', '${m.iddoobjetivo}')">Editar</button>
+					<button onclick="deletarMetodo('${m.id}')">Excluir</button></td>`;
+				tbody.appendChild(tr);
+			});
+		}
+		async function salvarMetodo(e) {
+			e.preventDefault();
+			const id = metodoId.value;
+			const nome = metodoNome.value;
+			const descricao = metodoDescricao.value;
+			const prompt = metodoPrompt.value;
+			const criteriosAvaliativos = metodoCriterios.value;
+			const idDoObjetivo = metodoObjetivoId.value;
+			let resp;
+			const payload = { nome, descricao, prompt, criteriosAvaliativos, idDoObjetivo };
+			if (id) {
+				resp = await fetch(`${API_BASE}/metodos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			} else {
+				resp = await fetch(`${API_BASE}/metodos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+			}
+			if (resp.ok) {
+				showMsg(metodoMsg, 'Salvo com sucesso!', true);
+				formMetodo.reset();
+				fetchMetodos();
+			} else {
+				showMsg(metodoMsg, 'Erro ao salvar!', false);
+			}
+		}
+		function editarMetodo(id, nome, descricao, prompt, criteriosAvaliativos, idDoObjetivo) {
+			metodoId.value = id;
+			metodoNome.value = nome;
+			metodoDescricao.value = descricao;
+			metodoPrompt.value = prompt;
+			metodoCriterios.value = criteriosAvaliativos;
+			metodoObjetivoId.value = idDoObjetivo;
+		}
+		async function deletarMetodo(id) {
+			if (!confirm('Excluir método?')) return;
+			const resp = await fetch(`${API_BASE}/metodos/${id}`, { method: 'DELETE' });
+			if (resp.ok) {
+				fetchMetodos();
+			}
+		}
+		btnLimparMetodo.onclick = () => formMetodo.reset();
+		formMetodo.onsubmit = salvarMetodo;
+
+		// Inicialização
+		fetchUsuarios();
+		fetchObjetivos();
+		fetchMetodos();
+	</script>
+</body>
+</html>

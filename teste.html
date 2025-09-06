@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Objetivos</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    button { padding: 10px 20px; font-size: 16px; }
+    ul { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Lista de Objetivos</h2>
+  <button id="buscar">Buscar Objetivos</button>
+  <ul id="lista"></ul>
+  <script>
+    document.getElementById('buscar').onclick = async () => {
+      const lista = document.getElementById('lista');
+      lista.innerHTML = 'Buscando...';
+      try {
+        const res = await fetch('http://localhost:3000/objetivos');
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          lista.innerHTML = data.map(obj => `<li>${obj.objetivo}</li>`).join('');
+        } else {
+          lista.innerHTML = '<li>Nenhum objetivo encontrado.</li>';
+        }
+      } catch (err) {
+        lista.innerHTML = '<li>Erro ao buscar objetivos: ' + err + '</li>';
+      }
+    };
+  </script>
+</body>
+</html>

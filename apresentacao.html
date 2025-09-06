@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagnóstico de Comunicação</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        input, button { padding: 10px; font-size: 16px; }
+        #resultado { margin-top: 30px; background: #f4f4f4; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Diagnóstico de Comunicação (AssemblyAI + Gemini)</h1>
+
+    <button id="startBtn" type="button">Gravar Áudio</button>
+    <button id="stopBtn" type="button" disabled>Parar Gravação</button>
+    <br><br>
+    <audio id="audioPlayer" controls style="display:none;"></audio>
+    <br>
+    <button id="enviarBtn" type="button" disabled>Enviar para Diagnóstico</button>
+    <div id="resultado"></div>
+    <div id="debug" style="color:#888;font-size:12px;"></div>
+
+    <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const enviarBtn = document.getElementById('enviarBtn');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const resultadoDiv = document.getElementById('resultado');
+    const debugDiv = document.getElementById('debug');
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let audioBlob = null;
+
+    startBtn.onclick = async () => {
+        resultadoDiv.innerHTML = '';
+        audioPlayer.style.display = 'none';
+        audioChunks = [];
+        audioBlob = null;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            enviarBtn.disabled = true;
+            mediaRecorder.ondataavailable = e => {
+                audioChunks.push(e.data);
+            };
+            mediaRecorder.onstop = () => {
+                audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioPlayer.src = audioUrl;
+                audioPlayer.style.display = 'block';
+                enviarBtn.disabled = false;
+            };
+        } catch (err) {
+            resultadoDiv.textContent = 'Permissão negada ou erro: ' + err;
+        }
+    };
+
+    stopBtn.onclick = () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+    };
+
+    enviarBtn.onclick = async (event) => { // <-- CORREÇÃO APLICADA AQUI
+        event.preventDefault();           // <-- E AQUI
+
+        debugDiv.textContent = '';
+        if (!audioBlob) {
+            resultadoDiv.textContent = 'Grave um áudio antes de enviar.';
+            return;
+        }
+        resultadoDiv.innerHTML = 'Enviando áudio para diagnóstico... Aguarde.';
+        enviarBtn.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.webm');
+            debugDiv.textContent = 'Enviando requisição para /diagnostico...';
+            const res = await fetch('http://localhost:3000/diagnostico', {
+                method: 'POST',
+                body: formData
+            });
+            debugDiv.textContent = 'Resposta recebida. Status: ' + res.status;
+            const data = await res.json();
+            debugDiv.textContent += ' | JSON: ' + JSON.stringify(data);
+            if (data.error) {
+                resultadoDiv.innerHTML = 'Erro: ' + data.error;
+            } else {
+                resultadoDiv.innerHTML = `<b>Transcrição:</b><br>${data.transcricao}<br><br><b>Diagnóstico:</b><br>${data.diagnostico}`;
+            }
+        } catch (err) {
+            resultadoDiv.innerHTML = 'Erro ao enviar áudio: ' + err;
+            debugDiv.textContent += ' | Exception: ' + err;
+        } finally {
+            enviarBtn.disabled = false;
+        }
+    };
+
+    // Garante que não existe nenhum <form> na página (evita submit acidental)
+    window.addEventListener('DOMContentLoaded', () => {
+        const forms = document.getElementsByTagName('form');
+        if (forms.length > 0) {
+            for (let f of forms) f.parentNode.removeChild(f);
+            debugDiv.textContent = 'Formulário removido automaticamente para evitar submit.';
+        }
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+node_modules/
+uploads/
+.env
+gerenciador-exercicios-oratoria/
+assemblyai-test.js
+
+exemplo-resposta-assemblyai-test.json
+
+audio-teste.mp3

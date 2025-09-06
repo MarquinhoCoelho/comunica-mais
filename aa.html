@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Gemini Pergunta Rápida</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    input, button { padding: 10px; font-size: 16px; }
+    #resposta { margin-top: 30px; background: #f4f4f4; padding: 15px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+  <h1>isso aqui é tudo funcionando sem precisar de API</h1>
+  <h2>Pergunte para a IA Gemini</h2>
+  <button id="startBtn">Gravar Áudio</button>
+  <button id="stopBtn" disabled>Parar Gravação</button>
+  <br><br>
+  <input type="file" id="audioUpload" accept="audio/mp3,audio/wav,audio/m4a,audio/webm" style="margin-bottom:10px;">
+  <span style="font-size:14px;">Formatos aceitos: mp3, wav, m4a, webm</span>
+  <br>
+  <button id="analyzeBtn" disabled>Enviar para AssemblyAI</button>
+  <button id="diagnoseBtn" disabled>Diagnóstico Gemini</button>
+  <audio id="audioPlayer" controls style="display:none;"></audio>
+  <div id="transcript"></div>
+  <div id="resposta"></div>
+
+  <script>
+    // Chaves e endpoints
+    const ASSEMBLY_API_KEY = '68468331aa814f4bbfb0b07fdf33af6b';
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+    const GEMINI_API_KEY = 'AIzaSyCe-pcC1Y2umiWtElRvFpAq7jjsBkfFsSg';
+
+    // Elementos
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const audioUpload = document.getElementById('audioUpload');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const diagnoseBtn = document.getElementById('diagnoseBtn');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const transcriptDiv = document.getElementById('transcript');
+    const respostaDiv = document.getElementById('resposta');
+
+    // Estado
+    let mediaRecorder;
+    let audioChunks = [];
+    let selectedAudioBlob = null;
+    let lastAnalysis = null;
+
+    // Muletas comuns
+    const muletas = ["tipo", "ééé", "né", "então", "daí", "tá", "hum", "ah", "bom", "certo", "ok"];
+
+    startBtn.onclick = async () => {
+      transcriptDiv.textContent = '';
+      respostaDiv.innerHTML = '';
+      audioPlayer.style.display = 'none';
+      audioChunks = [];
+      selectedAudioBlob = null;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        analyzeBtn.disabled = true;
+        diagnoseBtn.disabled = true;
+        mediaRecorder.ondataavailable = e => {
+          audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          selectedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(selectedAudioBlob);
+          audioPlayer.src = audioUrl;
+          audioPlayer.style.display = 'block';
+          analyzeBtn.disabled = false;
+        };
+      } catch (err) {
+        transcriptDiv.textContent = 'Permissão negada ou erro: ' + err;
+      }
+    };
+
+    stopBtn.onclick = () => {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    };
+
+    audioUpload.onchange = (e) => {
+      if (e.target.files.length > 0) {
+        selectedAudioBlob = e.target.files[0];
+        const audioUrl = URL.createObjectURL(selectedAudioBlob);
+        audioPlayer.src = audioUrl;
+        audioPlayer.style.display = 'block';
+        analyzeBtn.disabled = false;
+        diagnoseBtn.disabled = true;
+      }
+    };
+
+    analyzeBtn.onclick = async () => {
+      if (!selectedAudioBlob) {
+        transcriptDiv.textContent = 'Selecione ou grave um áudio antes de enviar.';
+        return;
+      }
+      transcriptDiv.textContent = 'Enviando áudio para AssemblyAI...';
+      respostaDiv.innerHTML = '';
+      try {
+        // 1. Upload do áudio
+        const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
+          method: 'POST',
+          headers: { 'authorization': ASSEMBLY_API_KEY },
+          body: selectedAudioBlob
+        });
+        const uploadData = await uploadRes.json();
+        // 2. Solicitar transcrição
+        const transcriptRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+          method: 'POST',
+          headers: {
+            'authorization': ASSEMBLY_API_KEY,
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            audio_url: uploadData.upload_url,
+            speech_model: 'universal',
+            language_code: 'pt',
+            punctuate: true,
+            format_text: true,
+            word_boost: muletas,
+          })
+        });
+        const transcriptData = await transcriptRes.json();
+        // 3. Polling para resultado
+        let completed = false;
+        let pollData;
+        while (!completed) {
+          await new Promise(r => setTimeout(r, 3000));
+          const pollRes = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptData.id}`, {
+            headers: { 'authorization': ASSEMBLY_API_KEY }
+          });
+          pollData = await pollRes.json();
+          if (pollData.status === 'completed') {
+            completed = true;
+          } else if (pollData.status === 'failed') {
+            completed = true;
+            transcriptDiv.textContent = 'Falha na transcrição.';
+            return;
+          }
+        }
+        // Exibir transcrição e análise
+        let html = `<b>Transcrição:</b> ${pollData.text}<br><br>`;
+
+        // Análise de muletas
+        let muletasEncontradas = [];
+        muletas.forEach(m => {
+          const regex = new RegExp(`\\b${m}\\b`, 'gi');
+          const count = (pollData.text.match(regex) || []).length;
+          if (count > 0) muletasEncontradas.push(`${m}: ${count}`);
+        });
+        html += `<b>Muletas encontradas:</b> ${muletasEncontradas.length ? muletasEncontradas.join(', ') : 'Nenhuma'}<br><br>`;
+
+        // Velocidade e pausas
+        let wpm = 0;
+        if (pollData.words && pollData.words.length > 0) {
+          let totalWords = pollData.words.length;
+          let startTime = pollData.words[0]?.start || 0;
+          let endTime = pollData.words[totalWords-1]?.end || 0;
+          let durationSec = (endTime - startTime) / 1000;
+          wpm = durationSec > 0 ? Math.round((totalWords / durationSec) * 60) : 0;
+          html += `<b>Velocidade:</b> ${wpm} palavras por minuto<br>`;
+          // Pausas: gaps > 1s entre palavras
+          let pausas = 0;
+          for (let i=1; i<totalWords; i++) {
+            let gap = (pollData.words[i].start - pollData.words[i-1].end) / 1000;
+            if (gap > 1) pausas++;
+          }
+          html += `<b>Pausas longas (&gt;1s):</b> ${pausas}<br><br>`;
+        } else {
+          html += `<b>Velocidade/Pausas:</b> Não disponível<br><br>`;
+        }
+
+        // Detalhamento de erros/acertos
+        html += `<b>Detalhamento:</b><ul>`;
+        if (muletasEncontradas.length > 0) {
+          html += `<li>Evite muletas: ${muletasEncontradas.join(', ')}</li>`;
+        } else {
+          html += `<li>Ótimo! Nenhuma muleta detectada.</li>`;
+        }
+        if (pollData.words && pollData.words.length > 0) {
+          html += `<li>Velocidade: ${pollData.words.length} palavras em ${(pollData.words[pollData.words.length-1].end - pollData.words[0].start)/1000}s</li>`;
+        }
+        html += `</ul>`;
+
+        transcriptDiv.innerHTML = html;
+
+        // Salvar dados para diagnóstico Gemini
+        lastAnalysis = {
+          transcript: pollData.text,
+          wordsPerMinute: wpm || 0,
+          lowConfidenceRate: pollData.words && pollData.words.length > 0 ? ((pollData.words.filter(w => w.confidence < 0.6).length / pollData.words.length) * 100).toFixed(1) : 0,
+          muletas: muletasEncontradas.length ? muletasEncontradas.length : 0
+        };
+        diagnoseBtn.disabled = false;
+      } catch (err) {
+        transcriptDiv.textContent = 'Erro ao analisar áudio: ' + err;
+      }
+    };
+
+    diagnoseBtn.onclick = async () => {
+      if (!lastAnalysis) {
+        respostaDiv.innerHTML = 'Realize a análise da fala primeiro.';
+        return;
+      }
+      respostaDiv.innerHTML = 'Consultando Gemini...';
+      const prompt = `Você é um especialista em comunicação e oratória.\nAvalie a fala de uma pessoa com base nestes dados:\n\n- Transcrição: ${lastAnalysis.transcript}\n- Velocidade (palavras por minuto): ${lastAnalysis.wordsPerMinute}\n- Taxa de clareza (palavras com baixa confiança): ${lastAnalysis.lowConfidenceRate}\n- Número de muletas detectadas: ${lastAnalysis.muletas}\n\nDiagnostique os principais problemas de comunicação e sugira como a pessoa pode melhorar.`;
+      try {
+        const res = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [ { parts: [ { text: prompt } ] } ]
+          })
+        });
+        const data = await res.json();
+        if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+          respostaDiv.innerHTML = `<b>Diagnóstico Gemini:</b><br>${data.candidates[0].content.parts[0].text}`;
+        } else {
+          respostaDiv.innerHTML = 'Não foi possível obter resposta da IA.';
+        }
+      } catch (err) {
+        respostaDiv.innerHTML = 'Erro: ' + err;
+      }
+    };
+  </script>
+</body>
+</html>

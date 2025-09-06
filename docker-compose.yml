@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16
+    container_name: pgcomunica
+    restart: always
+    environment:
+      POSTGRES_USER: local
+      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: comunicaMais
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  api:
+    build: .
+    container_name: comunica-api
+    command: npm start
+    ports:
+      - "3000:3000"
+    environment:
+      DB_USER: local
+      DB_PASSWORD: 12345
+      DB_NAME: comunicaMais
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+volumes:
+  pgdata:
