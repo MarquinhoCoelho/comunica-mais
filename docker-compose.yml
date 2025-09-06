@@ -18,7 +18,7 @@ services:
     container_name: comunica-api
     command: npm start
     ports:
-      - "3000:3000"
+      - "3331:3000"
     environment:
       DB_USER: local
       DB_PASSWORD: 12345
