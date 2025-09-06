@@ -9,8 +9,6 @@ services:
       POSTGRES_USER: local
       POSTGRES_PASSWORD: 12345
       POSTGRES_DB: comunicaMais
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,6 +20,11 @@ services:
     container_name: comunica-api
     restart: always
     command: npm start
+    # Expondo a API na porta 3331 do servidor.
+    # O Nginx principal vai se conectar a esta porta.
+    # O 3000 é a porta interna da sua aplicação Node.js.
+    ports:
+      - "3331:3000"
     environment:
       DB_USER: local
       DB_PASSWORD: 12345
@@ -32,53 +35,6 @@ services:
       - db
     networks:
       - app-network
-
-  nginx:
-    image: nginx:latest
-    container_name: nginx-proxy
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    depends_on:
-      - api
-    networks:
-      - app-network
-    # Adicionado comando para recarregar o Nginx periodicamente e pegar certificados renovados
-    command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    restart: always
-    volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    # Garante que o Nginx inicie antes de tentar obter o certificado
-    depends_on:
-      - nginx
-    # Comando para obter o certificado inicial e depois renová-lo automaticamente
-    command: >
-      sh -c "
-        echo 'Aguardando o Nginx iniciar...' && sleep 15s && \
-        echo 'Iniciando o Certbot...' && \
-        certbot certonly --webroot --webroot-path=/var/www/certbot \
-          --email mvscmarcos@gmail.com \
-          -d comunicamais.personal-dev.online \
-          --rsa-key-size 4096 \
-          --agree-tos \
-          --no-eff-email \
-          --non-interactive || true && \
-        while true; do \
-          sleep 12h && \
-          echo 'Renovando o certificado...' && \
-          certbot renew --quiet; \
-        done
-      "
 
 volumes:
   pgdata:
